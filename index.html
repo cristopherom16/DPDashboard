@@ -78,6 +78,21 @@
     table.data-table tbody tr:hover td {
       background-color: rgba(245, 158, 11, 0.08);
     }
+
+    /* DRAG & DROP STYLES */
+    tr.dragging {
+      opacity: 0.4;
+      background-color: rgba(245, 158, 11, 0.2) !important;
+    }
+    tr.drag-over td {
+      border-top: 2px solid #f59e0b !important;
+    }
+    .drag-handle {
+      cursor: grab;
+    }
+    .drag-handle:active {
+      cursor: grabbing;
+    }
   </style>
 </head>
 <body class="min-h-screen flex flex-col antialiased relative">
@@ -455,6 +470,7 @@
     let selectedAgent = null;
     let isEditingAgent = false;
     let pendingProtectedAction = null;
+    let draggedIndex = null;
 
     // PASSWORD PROTECTION LOGIC
     function protectedAction(actionCallback) {
@@ -519,21 +535,63 @@
       localStorage.setItem('highway_agents_list', JSON.stringify(agentsList));
     }
 
-    // RENDER AGENT TABLE
+    // RENDER AGENT TABLE WITH DRAG AND DROP
     function renderAgentDirectory(agents) {
       const tbody = document.getElementById('agentTableBody');
       tbody.innerHTML = '';
       
-      agents.forEach((agent) => {
+      agents.forEach((agent, index) => {
         const tr = document.createElement('tr');
-        tr.className = "cursor-pointer transition-colors";
+        tr.className = "cursor-pointer transition-colors drag-handle";
+        tr.draggable = true;
+        tr.dataset.index = index;
+
         if (selectedAgent && selectedAgent[0] === agent[0]) {
           tr.classList.add('bg-[#f59e0b]/20');
         }
         tr.onclick = () => selectAgent(agent, tr);
         
+        // DRAG & DROP EVENTS
+        tr.addEventListener('dragstart', (e) => {
+          draggedIndex = index;
+          tr.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+        });
+
+        tr.addEventListener('dragend', () => {
+          tr.classList.remove('dragging');
+          document.querySelectorAll('#agentTableBody tr').forEach(r => r.classList.remove('drag-over'));
+        });
+
+        tr.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          tr.classList.add('drag-over');
+        });
+
+        tr.addEventListener('dragleave', () => {
+          tr.classList.remove('drag-over');
+        });
+
+        tr.addEventListener('drop', (e) => {
+          e.preventDefault();
+          tr.classList.remove('drag-over');
+          const targetIndex = parseInt(tr.dataset.index);
+
+          if (draggedIndex !== null && draggedIndex !== targetIndex) {
+            // Reorder the agentsList array
+            const draggedItem = agentsList.splice(draggedIndex, 1)[0];
+            agentsList.splice(targetIndex, 0, draggedItem);
+
+            // Save and re-render
+            saveAgentsToStorage();
+            renderAgentDirectory(agentsList);
+            showToast("Agent order updated!");
+          }
+        });
+
         tr.innerHTML = `
-          <td class="font-bold text-white text-left pl-2">${agent[0]}</td>
+          <td class="font-bold text-white text-left pl-2"><i class="fa-solid fa-grip-vertical text-slate-500 mr-2"></i>${agent[0]}</td>
           <td class="text-center">${agent[1]}</td>
           <td class="text-center font-semibold text-[#f59e0b]">${agent[2]}</td>
           <td class="text-center">${agent[3]}</td>
