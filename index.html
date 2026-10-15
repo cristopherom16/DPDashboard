@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Disciplinary Process Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- SheetJS Library for Excel Export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    :root {
+      --navy-bg: #0f172a;
+      --navy-card: #1e293b;
+      --navy-border: #f59e0b;
+      --amber-main: #f59e0b;
+      --amber-hover: #d97706;
+      --amber-grid: rgba(245, 158, 11, 0.35);
+    }
+    body {
+      background-color: var(--navy-bg);
+      color: #f8fafc;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .amber-border {
+      border: 1px solid var(--amber-main);
+    }
+    .amber-glow {
+      box-shadow: 0 0 15px rgba(245, 158, 11, 0.25);
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #1e293b;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #f59e0b;
+    }
+    .toast-msg {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: #f59e0b;
+      color: #0f172a;
+      font-weight: bold;
+      padding: 10px 18px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 100;
+      display: none;
+    }
+    /* ENHANCED AMBER GRIDLINES */
+    table.data-table {
+      border-collapse: separate;
+      border-spacing: 0;
+      border: 1px solid var(--amber-grid);
+      white-space: nowrap;
+      width: 100%;
+    }
+    table.data-table th {
+      border-right: 1px solid var(--amber-grid);
+      border-bottom: 2px solid var(--amber-main);
+      padding: 8px 10px;
+    }
+    table.data-table td {
+      border-right: 1px solid var(--amber-grid);
+      border-bottom: 1px solid var(--amber-grid);
+      padding: 8px 10px;
+    }
+    table.data-table tbody tr:hover td {
+      background-color: rgba(245, 158, 11, 0.08);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased relative">
+
+  <div id="toast" class="toast-msg">
+    <i class="fa-solid fa-check-circle mr-2"></i>
+    <span id="toast-text">Data Saved Successfully!</span>
+  </div>
+
+  <!-- HEADER / CONTROL BAR -->
+  <header class="bg-[#1e293b] border-b-2 border-[#f59e0b] p-4 sticky top-0 z-20 flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
+    
+    <!-- LEFT PLACEHOLDER FOR FLEX BALANCE ON DESKTOP -->
+    <div class="hidden md:block w-72"></div>
+
+    <!-- CENTERED TITLE IN UPPERCASE WITH MATCHING ICON SIZE -->
+    <div class="flex flex-col items-center justify-center text-center">
+      <div class="flex items-center space-x-3">
+        <div class="w-12 h-12 md:w-14 md:h-14 bg-[#0f172a] rounded-full flex items-center justify-center p-2 shadow-md border-2 border-[#f59e0b] flex-shrink-0 amber-glow">
+          <i class="fa-solid fa-gavel text-2xl md:text-3xl text-[#f59e0b]"></i>
+        </div>
+        <h1 class="font-black text-3xl md:text-4xl tracking-wider text-[#f59e0b] uppercase leading-none drop-shadow-md">
+          DISCIPLINARY PROCESS DASHBOARD
+        </h1>
+      </div>
+      <p class="text-[11px] text-slate-300 font-medium tracking-widest uppercase mt-1">
+        Highway Performance & Compliance Management
+      </p>
+    </div>
+
+    <!-- SEARCH BAR & COMPACT EXCEL EXPORT BUTTON (TOP RIGHT) -->
+    <div class="flex flex-col items-end gap-2 w-full md:w-72">
+      <div class="relative w-full">
+        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-[#f59e0b] text-xs"></i>
+        <input type="text" id="searchInput" onkeyup="filterAgents()" placeholder="Search agent, team, branch..." class="w-full bg-[#0f172a] border border-[#f59e0b] rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-[#f59e0b]">
+      </div>
+
+      <!-- COMPACT EXCEL BUTTON BELOW SEARCH BAR -->
+      <button id="excelExportBtn" onclick="exportAgentProcessToExcel()" class="hidden bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1 rounded-md text-[11px] shadow transition-all flex items-center space-x-1.5 border border-emerald-400">
+        <i class="fa-solid fa-file-excel text-xs"></i>
+        <span>Export Agent Excel</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN BODY LAYOUT -->
+  <div class="flex-1 flex flex-col lg:flex-row h-[calc(100vh-90px)] overflow-hidden">
+    
+    <!-- LEFT PANEL: AGENT DIRECTORY -->
+    <aside class="w-full lg:w-1/3 bg-[#1e293b] border-r-2 border-[#f59e0b] flex flex-col h-full custom-scrollbar">
+      <div class="p-3 bg-[#0f172a] border-b border-[#f59e0b] flex justify-between items-center gap-2">
+        <span class="text-xs font-bold text-[#f59e0b] uppercase tracking-wider flex items-center">
+          <i class="fa-solid fa-users mr-1.5"></i> Directory
+        </span>
+        
+        <div class="flex items-center space-x-2">
+          <button onclick="openAgentModal(false)" class="bg-[#f59e0b] hover:bg-[#d97706] text-slate-950 font-bold px-2.5 py-1 rounded-md text-[11px] transition-all flex items-center space-x-1 shadow">
+            <i class="fa-solid fa-user-plus text-[10px]"></i>
+            <span>Add Agent</span>
+          </button>
+          <span id="agentCount" class="text-[10px] bg-[#f59e0b] text-slate-950 px-2 py-0.5 rounded-full font-bold">0 Agents</span>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-2 custom-scrollbar">
+        <table class="data-table text-xs text-slate-300" id="agentTable">
+          <thead class="bg-[#0f172a] text-[#f59e0b] uppercase font-bold sticky top-0 z-10">
+            <tr>
+              <th class="text-center">Agent Name</th>
+              <th class="text-center">Team</th>
+              <th class="text-center">Branch</th>
+              <th class="text-center">Supervisor</th>
+            </tr>
+          </thead>
+          <tbody id="agentTableBody">
+            <!-- Dynamic Agent Rows -->
+          </tbody>
+        </table>
+      </div>
+    </aside>
+
+    <!-- RIGHT PANEL: DISCIPLINARY PROCESS FILE CARD -->
+    <main class="w-full lg:w-2/3 bg-[#0f172a] flex flex-col h-full overflow-y-auto custom-scrollbar p-6">
+      
+      <!-- DEFAULT PLACEHOLDER -->
+      <div id="noAgentSelected" class="flex flex-col items-center justify-center h-full text-slate-500 space-y-3">
+        <i class="fa-solid fa-id-card-clip text-6xl text-slate-600"></i>
+        <p class="text-base font-medium">Select an agent from the directory to view or add Disciplinary Processes.</p>
+      </div>
+
+      <!-- AGENT PROFILE & FORM CONTAINER -->
+      <div id="agentProfileSection" class="hidden space-y-6 pb-16">
+        
+        <!-- AGENT PROFILE HEADER -->
+        <div class="bg-[#1e293b] border-2 border-[#f59e0b] rounded-xl p-4 amber-glow flex flex-wrap items-center justify-between gap-4">
+          <div class="space-y-1">
+            <div class="flex items-center space-x-3">
+              <h2 id="profileName" class="text-xl font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-user-gear text-[#f59e0b]"></i> <span>-</span>
+              </h2>
+              
+              <!-- EDIT AND DELETE AGENT BUTTONS -->
+              <button onclick="openAgentModal(true)" class="text-amber-400 hover:text-amber-300 bg-[#0f172a] border border-[#f59e0b] p-1.5 rounded-md transition-colors text-xs" title="Edit Agent Info">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </button>
+              <button onclick="deleteCurrentAgent()" class="text-rose-400 hover:text-rose-300 bg-[#0f172a] border border-rose-500/50 p-1.5 rounded-md transition-colors text-xs" title="Delete Agent">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>
+
+            <div class="flex flex-wrap gap-4 text-xs text-slate-300 pt-1">
+              <p><strong class="text-[#f59e0b]">Team:</strong> <span id="profileTeam">-</span></p>
+              <p><strong class="text-[#f59e0b]">Branch:</strong> <span id="profileBranch">-</span></p>
+              <p><strong class="text-[#f59e0b]">Supervisor:</strong> <span id="profileSupervisor">-</span></p>
+            </div>
+          </div>
+
+          <!-- YEAR NAVIGATION ONLY (2022 TO 2050) -->
+          <div class="flex items-center space-x-2 bg-[#0f172a] p-2 rounded-lg border border-[#f59e0b]">
+            <label class="text-[10px] text-[#f59e0b] font-bold flex items-center space-x-1">
+              <i class="fa-solid fa-calendar-days text-xs"></i>
+              <span>YEAR:</span>
+            </label>
+            <select id="yearSelect" onchange="loadAgentProcessData()" class="bg-[#1e293b] border border-[#f59e0b] text-[#f59e0b] text-xs font-semibold rounded px-2 py-1 focus:outline-none cursor-pointer">
+              <!-- Dynamically populated from 2022 to 2050 -->
+            </select>
+          </div>
+        </div>
+
+        <!-- PROCESSES CONTAINER -->
+        <div id="processesContainer" class="space-y-6">
+          <!-- Dynamic Process Boxes generated by Javascript -->
+        </div>
+
+        <!-- BUTTON TO ADD ADDITIONAL DISCIPLINARY PROCESS -->
+        <div class="flex justify-between items-center pt-2">
+          <button type="button" onclick="addExtraProcessBox()" class="inline-flex items-center space-x-2 bg-[#0f172a] hover:bg-[#1e293b] text-[#f59e0b] border-2 border-[#f59e0b] font-bold px-4 py-2 rounded-lg text-xs transition-all shadow-md hover:amber-glow">
+            <i class="fa-solid fa-circle-plus text-base"></i>
+            <span>Add new Disciplinary Process</span>
+          </button>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- MODAL FOR ADDING / EDITING AGENT -->
+  <div id="agentModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-[#1e293b] border-2 border-[#f59e0b] rounded-xl w-full max-w-md p-6 shadow-2xl space-y-4 amber-glow">
+      <div class="flex justify-between items-center border-b border-[#f59e0b]/40 pb-3">
+        <h3 id="modalTitle" class="text-sm font-bold text-[#f59e0b] uppercase tracking-wide flex items-center space-x-2">
+          <i class="fa-solid fa-user-pen"></i>
+          <span>Add New Agent</span>
+        </h3>
+        <button onclick="closeAgentModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <form id="agentForm" onsubmit="handleAgentFormSubmit(event)" class="space-y-3 text-xs">
+        <div>
+          <label class="block text-[#f59e0b] font-bold mb-1">Agent Name:</label>
+          <input type="text" id="modalAgentName" required placeholder="Full Name" class="w-full bg-[#0f172a] border border-[#f59e0b]/60 rounded-lg p-2 text-white focus:outline-none focus:border-[#f59e0b]">
+        </div>
+        <div>
+          <label class="block text-[#f59e0b] font-bold mb-1">Team / Department:</label>
+          <input type="text" id="modalAgentTeam" required placeholder="e.g. OBS - Cases" class="w-full bg-[#0f172a] border border-[#f59e0b]/60 rounded-lg p-2 text-white focus:outline-none focus:border-[#f59e0b]">
+        </div>
+        <div>
+          <label class="block text-[#f59e0b] font-bold mb-1">Branch / Country:</label>
+          <input type="text" id="modalAgentBranch" required placeholder="e.g. GUA, COL, MEX" class="w-full bg-[#0f172a] border border-[#f59e0b]/60 rounded-lg p-2 text-white focus:outline-none focus:border-[#f59e0b]">
+        </div>
+        <div>
+          <label class="block text-[#f59e0b] font-bold mb-1">Supervisor:</label>
+          <input type="text" id="modalAgentSupervisor" required placeholder="Supervisor Name" class="w-full bg-[#0f172a] border border-[#f59e0b]/60 rounded-lg p-2 text-white focus:outline-none focus:border-[#f59e0b]">
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3">
+          <button type="button" onclick="closeAgentModal()" class="px-4 py-1.5 rounded-lg bg-slate-800 text-slate-300 font-bold hover:bg-slate-700">Cancel</button>
+          <button type="submit" class="px-4 py-1.5 rounded-lg bg-[#f59e0b] text-slate-950 font-bold hover:bg-[#d97706]">Save Agent</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // INITIAL RAW DATA
+    let agentsList = [
+      // GUA / Management & CS
+      ["Andrea Mansilla", "Management", "GUA", "Jorge Garrido"],
+      ["Daniel E. Hernandez Soto", "Management", "GUA", "Jorge Garrido"],
+      ["Jonathan Mejia", "Management", "GUA", "Jorge Garrido"],
+      ["Brian Lopez", "Management", "GUA", "Jorge Garrido"],
+      ["Marvin Sandoval", "Management", "GUA", "Jorge Garrido"],
+      ["Armando Valenzuela", "Management", "GUA", "Jorge Garrido"],
+      ["Cristopher Orellana", "Management", "GUA", "Jorge Garrido"],
+      ["Diana Solis", "Management", "GUA", "Jorge Garrido"],
+      ["Jorge Garrido", "Management", "GUA", "Jorge Garrido"],
+      ["Karen Medinilla", "Management", "GUA", "Jorge Garrido"],
+      ["Kevin Lopez", "Management", "GUA", "Jorge Garrido"],
+      ["Diego Gonzalez", "Management", "GUA", "Jorge Garrido"],
+      ["Emely Hernandez", "OBS - Cases", "GUA", "Armando Valenzuela"],
+      ["Pablo Saquilmer", "OBS - Cases", "GUA", "Karen Medinilla"],
+      ["Ana Lucia Herrera", "OBS - Cases", "GUA", "Karen Medinilla"],
+      ["Emilia Mishel Chajon Perez", "OBS - Cases", "GUA", "Karen Medinilla"],
+      ["Jorge David Corado Saban", "OBS - Cases", "GUA", "Karen Medinilla"],
+      ["Diana Abigail Orozco Alvarez", "OBS - Cases", "GUA", "Armando Valenzuela"],
+      ["Rudy Herrera", "OBS - Cases", "GUA", "Armando Valenzuela"],
+      ["Jose Arriaga", "IntraCanadian", "GUA", "Armando Valenzuela"],
+      ["Manuel Juarez", "IntraCanadian", "GUA", "Armando Valenzuela"],
+      ["Sergio David Chigüil Reyes", "ELD - Phones", "GUA", "Diego Gonzalez"],
+      ["Edgar Enrique Castillo Linares", "ELD - Phones", "GUA", "Jonathan Mejia"],
+      ["Brandon Vasquez", "ELD - Cases", "GUA", "Jonathan Mejia"],
+      ["Samantha Chinchilla", "ELD - Phones", "GUA", "Jonathan Mejia"],
+      ["Celina Esmeralda Franco Ramirez", "ELD - Cases", "GUA", "Jonathan Mejia"],
+      ["Froy Cesar Oswaldo Gonzalez Davila", "ELD - Cases", "GUA", "Jonathan Mejia"],
+      ["Luis Gonzalez", "ELD - Phones", "GUA", "Jonathan Mejia"],
+      ["Sharon Olivares", "ELD - Phones", "GUA", "Jonathan Mejia"],
+      ["Esvin Gomez", "ELD - Phones", "GUA", "Diego Gonzalez"],
+      ["Iverth Anthony Monterroso", "ELD - Cases", "GUA", "Diego Gonzalez"],
+      ["Kevin Josue Martinez Acabal", "ELD - Phones", "GUA", "Diego Gonzalez"],
+      ["Melanie Annelisse Garcia Marin", "ELD - Phones", "GUA", "Jonathan Mejia"],
+      ["Josue Sucuc", "ELD - Cases", "GUA", "Jonathan Mejia"],
+      ["Sebastian Quinonez", "ELD - Phones", "GUA", "Jonathan Mejia"],
+      ["Luis Ajche", "ELD - Phones", "GUA", "Jonathan Mejia"],
+      ["Jorge Marco Geovani Najera Barillas", "ELD - Phones", "GUA", "Jonathan Mejia"],
+      ["Otto de la Cruz", "INS - Cases", "GUA", "Andrea Mansilla"],
+      ["Manfredo Monterroso", "INS - Phones", "GUA", "Andrea Mansilla"],
+      ["Eunice Sir", "INS - Cases", "GUA", "Andrea Mansilla"],
+      ["Gustavo Lopez", "INS - Phones", "GUA", "Andrea Mansilla"],
+      ["Ana Maria Melendez", "INS - Phones", "GUA", "Kevin Lopez"],
+      ["Monica Lopez", "INS - Cases", "GUA", "Kevin Lopez"],
+      ["Kener Lee", "INS - Phones", "GUA", "Andrea Mansilla"],
+      ["Ariel Antonio Yaegui Mazate", "INS - Cases", "GUA", "Andrea Mansilla"],
+      ["Acsa Marroquin", "INS - Phones", "GUA", "Andrea Mansilla"],
+      ["Marco Ovalle", "INS - Cases", "GUA", "Kevin Lopez"],
+      ["Kathering Santos", "INS - Cases", "GUA", "Kevin Lopez"],
+      ["Lynda Isabel Escobedo de Leon", "INS - Cases", "GUA", "Kevin Lopez"],
+      ["Juan Carlos Avedaño", "INS - Cases", "GUA", "Andrea Mansilla"],
+      ["Cesar David Lopez Colaj", "INS - Phones", "GUA", "Kevin Lopez"],
+      ["Julio Cortez", "Load Lock", "GUA", "Brian Lopez"],
+      ["Alex Margarito Tum Coyote", "Load Lock", "GUA", "Brian Lopez"],
+      ["Omar Gomez", "Load Lock", "GUA", "Brian Lopez"],
+      ["Luis Escobar", "Load Lock", "GUA", "Brian Lopez"],
+      ["Andy Pineda", "Load Lock", "GUA", "Brian Lopez"],
+      ["Edgar Palomo", "Load Lock", "GUA", "Brian Lopez"],
+      ["Jonathan Pirir", "Load Lock", "GUA", "Brian Lopez"],
+      ["Yossi Martinez", "Load Lock", "GUA", "Brian Lopez"],
+      
+      // COLOMBIA
+      ["Alejandra Manco", "OBS - Cases", "COL", "Nury Garcia"],
+      ["Sergio Hernandez", "Cases", "COL", "Sergio Gomez"],
+      ["Marlon Gallardo", "Phones", "COL", "Kevin Cadavid"],
+      ["Andrea Niño", "OBS - Phones", "COL", "Nury Garcia"],
+      ["Alexander Jaramillo Alvarado", "OBS - Phones", "COL", "Nury Garcia"],
+      ["Luis León", "INS - cases", "COL", "Nury Garcia"],
+      ["Michelle Daniela Marquez Rodriguez", "INS - cases", "COL", "Nury Garcia"],
+      ["Nury Garcia", "Management", "COL", "Nury Garcia"],
+
+      // PHILIPPINES
+      ["Jenny Jakosalem", "CS Management", "PHI", "Jenny Jakosalem"],
+      ["Marianne Abigail Velasco", "After Hours Operations", "PHI", "Jenny Jakosalem"],
+      ["Mary Joy Rafols", "After Hours Operations", "PHI", "Jenny Jakosalem"],
+      ["Kyle Andrei Abad", "After Hours Operations", "PHI", "Jenny Jakosalem"],
+      ["Aaron Gozum", "After Hours Operations", "PHI", "Jenny Jakosalem"],
+      ["Ann Jules Dayuta", "After Hours Operations", "PHI", "Jenny Jakosalem"],
+
+      // PANAMA
+      ["Lelburm Gordon", "OBS - Phones", "PAN", "Eduardo Bellamy"],
+      ["Dean Spencer", "OBS - Phones", "PAN", "Eduardo Bellamy"],
+      ["Stephanie Temple", "OBS - Phones", "PAN", "Eduardo Bellamy"],
+      ["Kellyneth Estrada", "OBS - Phones", "PAN", "Eduardo Bellamy"],
+      ["Alexander Santamaria", "OBS - Phones", "PAN", "Eduardo Bellamy"],
+      ["Sonia Jimenez", "OBS - Phones", "PAN", "Eduardo Bellamy"],
+      ["Zinedine Moscote", "OBS - Phones", "PAN", "Eduardo Bellamy"],
+      ["Felix Torres", "OBS - Phones", "PAN", "Eduardo Bellamy"],
+      ["Keyren Fuertes", "INS - Phones", "PAN", "Eduardo Bellamy"],
+      ["Osvaldo Flores", "INS - Phones", "PAN", "Eduardo Bellamy"],
+      ["Daisy Ledesma", "INS - Phones", "PAN", "Eduardo Bellamy"],
+      ["Shindana Redwood", "INS - Phones", "PAN", "Eduardo Bellamy"],
+      ["Marielys Tejada", "INS - Phones", "PAN", "Eduardo Bellamy"],
+      ["Benneth Smith", "ELD - phones", "PAN", "Eduardo Bellamy"],
+      ["Jesus Rios", "ELD - phones", "PAN", "Eduardo Bellamy"],
+      ["Marie Claire Perez", "ELD - phones", "PAN", "Eduardo Bellamy"],
+      ["Francisco Goncalvez", "ELD - phones", "PAN", "Eduardo Bellamy"],
+      ["Marcos Anibal Botello Espinosa", "ELD - phones", "PAN", "Eduardo Bellamy"],
+      ["Jose Del Carmen Rodriguez Rosas", "ELD - phones", "PAN", "Eduardo Bellamy"],
+      ["Carlos Ledezma", "ELD - phones", "PAN", "Eduardo Bellamy"],
+      ["Rogelio Rodriguez", "ELD - phones", "PAN", "Eduardo Bellamy"],
+      ["Kevin Williams", "ELD - phones", "PAN", "Eduardo Bellamy"],
+      ["Alexis Serracin", "coi", "PAN", "Eduardo Bellamy"],
+      ["Joel Rodriguez", "coi", "PAN", "Eduardo Bellamy"],
+      ["Mario Perez", "emails", "PAN", "Eduardo Bellamy"],
+      ["Maria Vasquez", "Phones", "PAN", "Marcos Anibal Botello Espinosa"],
+      ["Nidia Burrows", "Phones", "PAN", "Daniela Cerezo"],
+      ["Faustino Santos", "Phones", "PAN", "Daniela Cerezo"],
+      ["Daniela Cerezo", "Management", "PAN", "Eduardo Bellamy"],
+      ["Eduardo Bellamy", "Management", "PAN", "Eduardo Bellamy"],
+      ["Manuel Castro", "Management", "PAN", "Osvaldo Flores"],
+
+      // JAMAICA
+      ["Daneil Facey", "OBS - Phones", "JAM", "Akeem Reid"],
+      ["Shanique Kelly", "OBS - Phones", "JAM", "Chantal Pancho"],
+      ["Leona Wallace", "OBS - Phones", "JAM", "Akeem Reid"],
+      ["Vashaun Thompson", "OBS - Phones", "JAM", "Chantal Pancho"],
+      ["Alex Scarlett", "OBS - Phones", "JAM", "Akeem Reid"],
+      ["Michelle Salmon", "OBS - Phones", "JAM", "Chantal Pancho"],
+      ["Rohanya Gordon", "OBS - Phones", "JAM", "Kenford Morris"],
+      ["Sheldon Duncombe", "ELD - Phones", "JAM", "Akeem Reid"],
+      ["Shenique Thompson", "OBS - Phones", "JAM", "support team"],
+      ["Kascia Webb", "OBS - Phones", "JAM", "Akeem Reid"],
+      ["Kia Francis", "ELD - Phones", "JAM", "chantal pancho"],
+      ["Tevin Smallwood", "ELD - Cases", "JAM", "chantal pancho"],
+      ["Shiyan Lee", "ELD - Phones", "JAM", "chantal pancho"],
+      ["Abigayle Gentles", "Management", "JAM", "Akeem Reid"],
+      ["Akeem Reid", "Management", "JAM", "Akeem Reid"],
+      ["Chantal Pancho", "Management", "JAM", "Chantal Pancho"],
+
+      // MEXICO
+      ["Camila Martinez", "TFX", "MEX", "Support team"],
+      ["Daniel Alejandro Flores Castañeda", "TFX", "MEX", "Support team"],
+      ["Fernando García Rodriguez", "OBS - Cases", "MEX", "Support team"],
+      ["Galilea Danae Gutierrez Fregoso", "OBS - Cases", "MEX", "Carlos Rios"],
+      ["Israel Calderón Arias", "OBS - Phones", "MEX", "Carlos Rios"],
+      ["Bruno Alfonso Rodriguez Lucio", "OBS - Phones", "MEX", "Sabdy Alvarez"],
+      ["Raul Tornel Garcia", "OBS - Phones", "MEX", "Sabdy Alvarez"],
+      ["Omar Ulises Guzman Jímenez", "OBS - Phones", "MEX", "Carlos Rios"],
+      ["Nancy Johnston Pulido", "Cases", "MEX", "Carlos Rios"],
+      ["Joseth Belem Huerta Rodriguez", "INS - Cases", "MEX", "Carlos Rios"],
+      ["Alondra Mendoza Pardo", "INS - Cases", "MEX", "Sabdy Alvarez"],
+      ["Christian Juan Moises Paez Valencia", "Phones", "MEX", "Carlos Rios"],
+      ["Cesar Alexis Sanchez Larios", "ELD - Cases", "MEX", "Carlos Rios"],
+      ["Danae Castillo Fregoso", "ELD - Phones", "MEX", "Sabdy Alvarez"],
+      ["Kevin Gordoa Ibarra", "ELD - Phones", "MEX", "Carlos Rios"],
+      ["Daniel Sebastian Pelayo Zarate", "ELD - Phones", "MEX", "Sabdy Alvarez"],
+      ["José Isaias Nuñez Barrios", "Phones", "MEX", "Benjamin Muñoz"],
+      ["Grecia Martínez Samaniego", "Phones", "MEX", "Benjamin Muñoz"],
+      ["Jose Andrés Perez Martin", "Phones", "MEX", "Benjamin Muñoz"],
+      ["Jonathan Ricardo Gonzalez Araiza", "Phones", "MEX", "Benjamin Muñoz"],
+      ["Pablo Arturo Figueroa Donde", "Phones", "MEX", "Benjamin Muñoz"],
+      ["Fernando Daniel Ramirez Rodriguez", "TFX", "MEX", "Sebastian Chavez"],
+      ["Mariana Velasquez Cruz", "TFX", "MEX", "Sebastian Chavez"],
+      ["Maria Fernanda Saucedo Marquez", "TFX", "MEX", "Sebastian Chavez"],
+      ["Diego Emiliano Archundia Ocha", "Phones", "MEX", "Luis Corrales"],
+      ["Frida Alexandra Solis Moscorro", "Phones", "MEX", "Luis Corrales"],
+      ["Irving Reyes Neri", "T2", "MEX", "Sabdy Alvarez"],
+      ["Sabdy Alvarez", "Management", "MEX", "Sabdy Alvarez"],
+      ["Sebastian Chavez", "Management", "MEX", "Sebastian Chavez"],
+      ["Carlos Rios", "Management", "MEX", "Carlos Rios"]
+    ];
+
+    let selectedAgent = null;
+    let isEditingAgent = false;
+
+    // POPULATE YEARS (2022 TO 2050)
+    function initYearSelector() {
+      const yearSelect = document.getElementById('yearSelect');
+      yearSelect.innerHTML = '';
+      for (let y = 2022; y <= 2050; y++) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.innerText = y;
+        if (y === 2026) opt.selected = true;
+        yearSelect.appendChild(opt);
+      }
+    }
+
+    // INITIALIZATION
+    window.onload = () => {
+      initYearSelector();
+      // Load stored agents if available
+      const storedAgents = localStorage.getItem('highway_agents_list');
+      if (storedAgents) {
+        agentsList = JSON.parse(storedAgents);
+      }
+      renderAgentDirectory(agentsList);
+    };
+
+    function saveAgentsToStorage() {
+      localStorage.setItem('highway_agents_list', JSON.stringify(agentsList));
+    }
+
+    // RENDER AGENT TABLE
+    function renderAgentDirectory(agents) {
+      const tbody = document.getElementById('agentTableBody');
+      tbody.innerHTML = '';
+      
+      agents.forEach((agent) => {
+        const tr = document.createElement('tr');
+        tr.className = "cursor-pointer transition-colors";
+        if (selectedAgent && selectedAgent[0] === agent[0]) {
+          tr.classList.add('bg-[#f59e0b]/20');
+        }
+        tr.onclick = () => selectAgent(agent, tr);
+        
+        tr.innerHTML = `
+          <td class="font-bold text-white text-left pl-2">${agent[0]}</td>
+          <td class="text-center">${agent[1]}</td>
+          <td class="text-center font-semibold text-[#f59e0b]">${agent[2]}</td>
+          <td class="text-center">${agent[3]}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('agentCount').innerText = `${agents.length} Agents`;
+    }
+
+    // SEARCH FILTER
+    function filterAgents() {
+      const query = document.getElementById('searchInput').value.toLowerCase();
+      const filtered = agentsList.filter(ag => 
+        ag[0].toLowerCase().includes(query) ||
+        ag[1].toLowerCase().includes(query) ||
+        ag[2].toLowerCase().includes(query) ||
+        ag[3].toLowerCase().includes(query)
+      );
+      renderAgentDirectory(filtered);
+    }
+
+    // SELECT AGENT ACTION
+    function selectAgent(agentArr, trElement) {
+      document.querySelectorAll('#agentTableBody tr').forEach(r => r.classList.remove('bg-[#f59e0b]/20'));
+      if (trElement) trElement.classList.add('bg-[#f59e0b]/20');
+
+      selectedAgent = agentArr;
+
+      document.getElementById('noAgentSelected').classList.add('hidden');
+      document.getElementById('agentProfileSection').classList.remove('hidden');
+      document.getElementById('excelExportBtn').classList.remove('hidden');
+
+      document.getElementById('profileName').querySelector('span').innerText = agentArr[0];
+      document.getElementById('profileTeam').innerText = agentArr[1];
+      document.getElementById('profileBranch').innerText = agentArr[2];
+      document.getElementById('profileSupervisor').innerText = agentArr[3];
+
+      loadAgentProcessData();
+    }
+
+    // DISCIPLINARY PROCESS OPTIONS
+    const processOptions = [
+      "Verbal Warning",
+      "Commitment Agreement",
+      "Accountability Session",
+      "Written Warning",
+      "Disciplinary Suspension",
+      "Removal"
+    ];
+
+    // LOAD AGENT PROCESS DATA FOR THE SELECTED YEAR
+    function loadAgentProcessData() {
+      if (!selectedAgent) return;
+
+      const agentName = selectedAgent[0];
+      const year = document.getElementById('yearSelect').value;
+      const key = `disc_proc_${agentName}_${year}`;
+
+      const savedData = localStorage.getItem(key);
+      const container = document.getElementById('processesContainer');
+      container.innerHTML = '';
+
+      let processes = [];
+
+      if (savedData) {
+        processes = JSON.parse(savedData);
+      } else {
+        // Default 3 Empty Processes for the selected year
+        processes = [
+          { type: '', date: '', reason: '', insights: '' },
+          { type: '', date: '', reason: '', insights: '' },
+          { type: '', date: '', reason: '', insights: '' }
+        ];
+      }
+
+      processes.forEach((proc, index) => {
+        container.appendChild(createProcessBoxHtml(index + 1, proc));
+      });
+    }
+
+    // CREATE PROCESS FORM HTML BOX
+    function createProcessBoxHtml(index, data = { type: '', date: '', reason: '', insights: '' }) {
+      const box = document.createElement('div');
+      box.className = "process-box bg-[#1e293b] border-2 border-[#f59e0b] rounded-xl p-5 shadow-xl space-y-4 relative amber-glow";
+      box.dataset.index = index;
+
+      const optionsHtml = processOptions.map(opt => 
+        `<option value="${opt}" ${data.type === opt ? 'selected' : ''}>${opt}</option>`
+      ).join('');
+
+      box.innerHTML = `
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-[#f59e0b]/40 pb-3">
+          <div class="flex items-center space-x-2">
+            <span class="bg-[#f59e0b] text-slate-950 font-extrabold text-xs px-2.5 py-1 rounded-md">#${index}</span>
+            <h3 class="text-sm font-bold text-[#f59e0b] uppercase tracking-wide">Disciplinary Process</h3>
+          </div>
+
+          <!-- DROP DOWN AND DATE -->
+          <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            <select class="proc-type bg-[#0f172a] border border-[#f59e0b] text-[#f59e0b] text-xs font-semibold rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-[#f59e0b] cursor-pointer flex-1 md:flex-none">
+              <option value="">-- Select Disciplinary Process --</option>
+              ${optionsHtml}
+            </select>
+
+            <div class="flex items-center space-x-1.5 bg-[#0f172a] border border-[#f59e0b] rounded-lg px-2 py-1">
+              <label class="text-[10px] text-[#f59e0b] font-bold whitespace-nowrap">Process Given On:</label>
+              <input type="date" value="${data.date || ''}" class="proc-date bg-transparent text-white text-xs font-semibold focus:outline-none cursor-pointer">
+            </div>
+          </div>
+        </div>
+
+        <!-- REASON & INSIGHTS TEXTAREAS -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="space-y-1">
+            <label class="text-xs font-bold text-[#f59e0b] flex items-center gap-1">
+              <i class="fa-solid fa-circle-exclamation"></i> Reason:
+            </label>
+            <textarea placeholder="Enter detailed reason for disciplinary process..." class="proc-reason w-full bg-[#0f172a] border border-[#f59e0b]/60 rounded-lg p-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-[#f59e0b] min-h-[90px] custom-scrollbar leading-relaxed">${data.reason || ''}</textarea>
+          </div>
+
+          <div class="space-y-1">
+            <label class="text-xs font-bold text-[#f59e0b] flex items-center gap-1">
+              <i class="fa-solid fa-lightbulb"></i> Insights & Commitment:
+            </label>
+            <textarea placeholder="Enter agent commitments and coaching insights..." class="proc-insights w-full bg-[#0f172a] border border-[#f59e0b]/60 rounded-lg p-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-[#f59e0b] min-h-[90px] custom-scrollbar leading-relaxed">${data.insights || ''}</textarea>
+          </div>
+        </div>
+
+        <!-- SAVE BUTTON -->
+        <div class="flex justify-end pt-1">
+          <button type="button" onclick="saveDisciplinaryProcess(${index})" class="inline-flex items-center space-x-1.5 bg-[#f59e0b] hover:bg-[#d97706] text-slate-950 font-bold px-4 py-1.5 rounded-lg text-xs transition-all shadow-md">
+            <i class="fa-solid fa-floppy-disk"></i>
+            <span>Save Disciplinary Process</span>
+          </button>
+        </div>
+      `;
+
+      return box;
+    }
+
+    // ADD EXTRA DISCIPLINARY PROCESS
+    function addExtraProcessBox() {
+      const container = document.getElementById('processesContainer');
+      const count = container.querySelectorAll('.process-box').length;
+      container.appendChild(createProcessBoxHtml(count + 1));
+      showToast(`Added Disciplinary Process Box #${count + 1}`);
+    }
+
+    // SAVE DISCIPLINARY PROCESS FOR SELECTED YEAR
+    function saveDisciplinaryProcess(index) {
+      if (!selectedAgent) return;
+
+      const agentName = selectedAgent[0];
+      const year = document.getElementById('yearSelect').value;
+      const key = `disc_proc_${agentName}_${year}`;
+
+      const container = document.getElementById('processesContainer');
+      const boxes = container.querySelectorAll('.process-box');
+
+      const processList = [];
+
+      boxes.forEach(box => {
+        const type = box.querySelector('.proc-type').value;
+        const date = box.querySelector('.proc-date').value;
+        const reason = box.querySelector('.proc-reason').value;
+        const insights = box.querySelector('.proc-insights').value;
+
+        processList.push({ type, date, reason, insights });
+      });
+
+      localStorage.setItem(key, JSON.stringify(processList));
+      showToast(`Process #${index} saved for ${agentName} (${year})!`);
+    }
+
+    // EXPORT DISCIPLINARY PROCESSES TO EXCEL FOR SELECTED AGENT
+    function exportAgentProcessToExcel() {
+      if (!selectedAgent) return;
+
+      const agentName = selectedAgent[0];
+      const year = document.getElementById('yearSelect').value;
+      const key = `disc_proc_${agentName}_${year}`;
+
+      const savedData = localStorage.getItem(key);
+      let processes = [];
+
+      if (savedData) {
+        processes = JSON.parse(savedData);
+      } else {
+        const container = document.getElementById('processesContainer');
+        const boxes = container.querySelectorAll('.process-box');
+        boxes.forEach(box => {
+          const type = box.querySelector('.proc-type').value;
+          const date = box.querySelector('.proc-date').value;
+          const reason = box.querySelector('.proc-reason').value;
+          const insights = box.querySelector('.proc-insights').value;
+          processes.push({ type, date, reason, insights });
+        });
+      }
+
+      // Prepare Excel Data Array
+      const excelRows = [
+        ["DISCIPLINARY PROCESS REPORT"],
+        ["Agent Name:", agentName],
+        ["Team / Dept:", selectedAgent[1]],
+        ["Branch:", selectedAgent[2]],
+        ["Supervisor:", selectedAgent[3]],
+        ["Year:", year],
+        [],
+        ["Process #", "Disciplinary Process Type", "Process Given On", "Reason", "Insights & Commitment"]
+      ];
+
+      let count = 0;
+      processes.forEach((proc, i) => {
+        if (proc.type || proc.date || proc.reason || proc.insights) {
+          count++;
+          excelRows.push([
+            `#${i + 1}`,
+            proc.type || "N/A",
+            proc.date || "N/A",
+            proc.reason || "N/A",
+            proc.insights || "N/A"
+          ]);
+        }
+      });
+
+      if (count === 0) {
+        showToast("No disciplinary process records found to export!");
+        return;
+      }
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(excelRows);
+      XLSX.utils.book_append_sheet(wb, ws, "Disciplinary Processes");
+
+      const safeName = agentName.replace(/[^a-zA-Z0-9]/g, "_");
+      const fileName = `Disciplinary_Report_${safeName}_${year}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+
+      showToast(`Exported Excel Report for ${agentName}`);
+    }
+
+    // MODAL AGENT MANAGEMENT
+    function openAgentModal(isEdit) {
+      isEditingAgent = isEdit;
+      const modal = document.getElementById('agentModal');
+      const title = document.getElementById('modalTitle').querySelector('span');
+
+      if (isEdit) {
+        if (!selectedAgent) return;
+        title.innerText = "Edit Agent Information";
+        document.getElementById('modalAgentName').value = selectedAgent[0];
+        document.getElementById('modalAgentTeam').value = selectedAgent[1];
+        document.getElementById('modalAgentBranch').value = selectedAgent[2];
+        document.getElementById('modalAgentSupervisor').value = selectedAgent[3];
+      } else {
+        title.innerText = "Add New Agent";
+        document.getElementById('agentForm').reset();
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    function closeAgentModal() {
+      document.getElementById('agentModal').classList.add('hidden');
+    }
+
+    function handleAgentFormSubmit(e) {
+      e.preventDefault();
+      const name = document.getElementById('modalAgentName').value.trim();
+      const team = document.getElementById('modalAgentTeam').value.trim();
+      const branch = document.getElementById('modalAgentBranch').value.trim();
+      const supervisor = document.getElementById('modalAgentSupervisor').value.trim();
+
+      if (isEditingAgent && selectedAgent) {
+        const oldName = selectedAgent[0];
+        selectedAgent[0] = name;
+        selectedAgent[1] = team;
+        selectedAgent[2] = branch;
+        selectedAgent[3] = supervisor;
+
+        // Update profile labels if active
+        document.getElementById('profileName').querySelector('span').innerText = name;
+        document.getElementById('profileTeam').innerText = team;
+        document.getElementById('profileBranch').innerText = branch;
+        document.getElementById('profileSupervisor').innerText = supervisor;
+
+        showToast(`Agent ${name} updated successfully!`);
+      } else {
+        const newAgent = [name, team, branch, supervisor];
+        agentsList.unshift(newAgent);
+        showToast(`New agent ${name} added!`);
+      }
+
+      saveAgentsToStorage();
+      renderAgentDirectory(agentsList);
+      closeAgentModal();
+    }
+
+    function deleteCurrentAgent() {
+      if (!selectedAgent) return;
+      const name = selectedAgent[0];
+      if (confirm(`Are you sure you want to delete agent "${name}"?`)) {
+        agentsList = agentsList.filter(ag => ag[0] !== name);
+        saveAgentsToStorage();
+        renderAgentDirectory(agentsList);
+
+        selectedAgent = null;
+        document.getElementById('agentProfileSection').classList.add('hidden');
+        document.getElementById('excelExportBtn').classList.add('hidden');
+        document.getElementById('noAgentSelected').classList.remove('hidden');
+
+        showToast(`Agent "${name}" deleted.`);
+      }
+    }
+
+    // TOAST NOTIFICATION
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      document.getElementById('toast-text').innerText = msg;
+      t.style.display = 'block';
+      setTimeout(() => {
+        t.style.display = 'none';
+      }, 2500);
+    }
+  </script>
+</body>
+</html>
