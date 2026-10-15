@@ -180,10 +180,10 @@
               </h2>
               
               <!-- EDIT AND DELETE AGENT BUTTONS -->
-              <button onclick="openAgentModal(true)" class="text-amber-400 hover:text-amber-300 bg-[#0f172a] border border-[#f59e0b] p-1.5 rounded-md transition-colors text-xs" title="Edit Agent Info">
+              <button onclick="protectedAction(() => openAgentModal(true))" class="text-amber-400 hover:text-amber-300 bg-[#0f172a] border border-[#f59e0b] p-1.5 rounded-md transition-colors text-xs" title="Edit Agent Info">
                 <i class="fa-solid fa-pen-to-square"></i>
               </button>
-              <button onclick="deleteCurrentAgent()" class="text-rose-400 hover:text-rose-300 bg-[#0f172a] border border-rose-500/50 p-1.5 rounded-md transition-colors text-xs" title="Delete Agent">
+              <button onclick="protectedAction(() => deleteCurrentAgent())" class="text-rose-400 hover:text-rose-300 bg-[#0f172a] border border-rose-500/50 p-1.5 rounded-md transition-colors text-xs" title="Delete Agent">
                 <i class="fa-solid fa-trash-can"></i>
               </button>
             </div>
@@ -258,6 +258,31 @@
           <button type="submit" class="px-4 py-1.5 rounded-lg bg-[#f59e0b] text-slate-950 font-bold hover:bg-[#d97706]">Save Agent</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- PASSWORD MODAL -->
+  <div id="passwordModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-[#1e293b] border-2 border-[#f59e0b] rounded-xl w-full max-w-sm p-6 shadow-2xl space-y-4 amber-glow">
+      <div class="flex justify-between items-center border-b border-[#f59e0b]/40 pb-3">
+        <h3 class="text-sm font-bold text-[#f59e0b] uppercase tracking-wide flex items-center space-x-2">
+          <i class="fa-solid fa-lock"></i>
+          <span>Authentication Required</span>
+        </h3>
+        <button onclick="closePasswordModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <p class="text-slate-300">Enter management password to proceed:</p>
+        <div>
+          <input type="password" id="authPasswordInput" placeholder="Password" class="w-full bg-[#0f172a] border border-[#f59e0b]/60 rounded-lg p-2 text-white focus:outline-none focus:border-[#f59e0b]">
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-2">
+          <button type="button" onclick="closePasswordModal()" class="px-4 py-1.5 rounded-lg bg-slate-800 text-slate-300 font-bold hover:bg-slate-700">Cancel</button>
+          <button type="button" onclick="verifyPassword()" class="px-4 py-1.5 rounded-lg bg-[#f59e0b] text-slate-950 font-bold hover:bg-[#d97706]">Submit</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -429,6 +454,36 @@
 
     let selectedAgent = null;
     let isEditingAgent = false;
+    let pendingProtectedAction = null;
+
+    // PASSWORD PROTECTION LOGIC
+    function protectedAction(actionCallback) {
+      pendingProtectedAction = actionCallback;
+      const pwdModal = document.getElementById('passwordModal');
+      const input = document.getElementById('authPasswordInput');
+      input.value = '';
+      pwdModal.classList.remove('hidden');
+      input.focus();
+    }
+
+    function closePasswordModal() {
+      document.getElementById('passwordModal').classList.add('hidden');
+      pendingProtectedAction = null;
+    }
+
+    function verifyPassword() {
+      const input = document.getElementById('authPasswordInput').value;
+      if (input === 'management2026!') {
+        document.getElementById('passwordModal').classList.add('hidden');
+        if (typeof pendingProtectedAction === 'function') {
+          const action = pendingProtectedAction;
+          pendingProtectedAction = null;
+          action();
+        }
+      } else {
+        alert('Incorrect Password!');
+      }
+    }
 
     // POPULATE YEARS (2022 TO 2050)
     function initYearSelector() {
@@ -446,6 +501,12 @@
     // INITIALIZATION
     window.onload = () => {
       initYearSelector();
+      
+      // Allow pressing Enter on Password Input
+      document.getElementById('authPasswordInput').addEventListener('keyup', (e) => {
+        if (e.key === 'Enter') verifyPassword();
+      });
+
       // Load stored agents if available
       const storedAgents = localStorage.getItem('highway_agents_list');
       if (storedAgents) {
