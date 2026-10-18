@@ -99,7 +99,7 @@
     .toast-msg {
       position: fixed;
       bottom: 20px;
-      left: 70px;
+      left: 20px;
       background: #f59e0b;
       color: #0f172a;
       font-weight: bold;
@@ -147,23 +147,23 @@
       cursor: grabbing;
     }
 
-    /* COMPACT FLOATING THEME TOGGLE BUTTON */
+    /* COMPACT FLOATING THEME TOGGLE BUTTON (BOTTOM RIGHT) */
     .theme-toggle-btn {
       position: fixed;
       bottom: 20px;
-      left: 20px;
+      right: 20px;
       z-index: 999;
-      width: 40px;
-      height: 40px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
       background-color: #f59e0b;
       color: #0f172a;
-      border: 2px solid #f59e0b;
+      border: 1.5px solid #f59e0b;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
       transition: transform 0.2s, background-color 0.2s;
     }
     .theme-toggle-btn:hover {
@@ -174,9 +174,9 @@
 </head>
 <body class="min-h-screen flex flex-col antialiased relative">
 
-  <!-- SMALL FLOATING DARK/LIGHT MODE TOGGLE BUTTON (BOTTOM LEFT) -->
+  <!-- SMALL FLOATING DARK/LIGHT MODE TOGGLE BUTTON (BOTTOM RIGHT) -->
   <button onclick="toggleTheme()" class="theme-toggle-btn" title="Toggle Light/Dark Mode">
-    <i id="themeIcon" class="fa-solid fa-sun text-lg"></i>
+    <i id="themeIcon" class="fa-solid fa-sun text-sm"></i>
   </button>
 
   <div id="toast" class="toast-msg">
@@ -561,10 +561,10 @@
       const isLight = body.classList.toggle('light-mode');
 
       if (isLight) {
-        icon.className = 'fa-solid fa-moon text-lg';
+        icon.className = 'fa-solid fa-moon text-sm';
         localStorage.setItem('disc_dashboard_theme', 'light');
       } else {
-        icon.className = 'fa-solid fa-sun text-lg';
+        icon.className = 'fa-solid fa-sun text-sm';
         localStorage.setItem('disc_dashboard_theme', 'dark');
       }
     }
@@ -575,10 +575,10 @@
 
       if (savedTheme === 'light') {
         document.body.classList.add('light-mode');
-        icon.className = 'fa-solid fa-moon text-lg';
+        icon.className = 'fa-solid fa-moon text-sm';
       } else {
         document.body.classList.remove('light-mode');
-        icon.className = 'fa-solid fa-sun text-lg';
+        icon.className = 'fa-solid fa-sun text-sm';
       }
     }
 
